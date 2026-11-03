@@ -37,6 +37,7 @@ class ScreenCaptureService : Service() {
 
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
+            projection = null
             stopCaptureResources()
             stopSelf()
         }
@@ -171,8 +172,16 @@ class ScreenCaptureService : Service() {
         virtualDisplay = null
         imageReader?.close()
         imageReader = null
-        projection?.unregisterCallback(projectionCallback)
+        val activeProjection = projection
         projection = null
+        if (activeProjection != null) {
+            try {
+                activeProjection.unregisterCallback(projectionCallback)
+                activeProjection.stop()
+            } catch (_: Exception) {
+                // Projection may already have been stopped by Android.
+            }
+        }
         analyzer.reset()
         workerThread?.quitSafely()
         workerThread = null
