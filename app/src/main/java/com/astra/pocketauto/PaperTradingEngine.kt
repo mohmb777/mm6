@@ -112,7 +112,7 @@ class PaperTradingEngine(
             openTrade != null -> "صفقة تجريبية مفتوحة"
             dailyNet <= -settings.maxDailyLoss -> "توقف: حد الخسارة اليومية"
             consecutiveLosses >= settings.maxConsecutiveLosses -> "توقف: خسائر متتالية"
-            tradesToday >= settings.maxTradesPerDay -> "توقف: الحد اليومي للصفقات"
+            tradesToday >= settings.maxTradesPerUtcDay -> "توقف: الحد اليومي للصفقات"
             else -> "انتظار إشارة مؤهلة"
         }
         return snapshot(status) to result
@@ -147,7 +147,7 @@ class PaperTradingEngine(
     private fun canOpenTrade(): Boolean =
         balance >= settings.stakeAmount &&
             dailyNet > -settings.maxDailyLoss &&
-            tradesToday < settings.maxTradesPerDay &&
+            tradesToday < settings.maxTradesPerUtcDay &&
             consecutiveLosses < settings.maxConsecutiveLosses
 
     private fun snapshot(status: String) = Snapshot(
