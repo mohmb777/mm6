@@ -4,7 +4,10 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
@@ -20,14 +23,36 @@ class OverlayService : Service() {
 
     private lateinit var windowManager: WindowManager
     private var overlayView: View? = null
-    private var demoRunning = false
+    private var statusView: TextView? = null
+    private var receiverRegistered = false
+
+    private val frameStatusReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action != ScreenCaptureService.ACTION_FRAME_STATUS) return
+            val activity = intent.getStringExtra(ScreenCaptureService.EXTRA_ACTIVITY) ?: "جارٍ التحليل"
+            val frames = intent.getLongExtra(ScreenCaptureService.EXTRA_FRAME_COUNT, 0L)
+            statusView?.text = "$activity\nإطارات معالجة: $frames"
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification())
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        registerFrameReceiver()
         showOverlay()
+    }
+
+    private fun registerFrameReceiver() {
+        val filter = IntentFilter(ScreenCaptureService.ACTION_FRAME_STATUS)
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(frameStatusReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(frameStatusReceiver, filter)
+        }
+        receiverRegistered = true
     }
 
     private fun showOverlay() {
@@ -47,21 +72,11 @@ class OverlayService : Service() {
             setPadding(4, 2, 4, 6)
         }
 
-        val status = TextView(this).apply {
-            text = "تجريبي — غير متصل بالشارت"
+        statusView = TextView(this).apply {
+            text = "بانتظار موافقة مشاركة الشاشة"
             textSize = 10f
             setTextColor(0xFFFFD180.toInt())
             gravity = Gravity.CENTER
-        }
-
-        val demoButton = Button(this).apply {
-            text = "اختبار الواجهة"
-            textSize = 10f
-            setOnClickListener {
-                demoRunning = !demoRunning
-                text = if (demoRunning) "إيقاف الاختبار" else "اختبار الواجهة"
-                status.text = if (demoRunning) "وضع عرض تجريبي فقط" else "تجريبي — غير متصل بالشارت"
-            }
         }
 
         val closeButton = Button(this).apply {
@@ -71,8 +86,7 @@ class OverlayService : Service() {
         }
 
         panel.addView(header)
-        panel.addView(status)
-        panel.addView(demoButton)
+        panel.addView(statusView)
         panel.addView(closeButton)
 
         val overlayType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -147,17 +161,21 @@ class OverlayService : Service() {
         }
         return builder
             .setContentTitle("ASTRA Pocket Auto")
-            .setContentText("النافذة العائمة تعمل — وضع تجريبي")
+            .setContentText("النافذة العائمة تعمل")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .build()
     }
 
     override fun onDestroy() {
+        if (receiverRegistered) {
+            unregisterReceiver(frameStatusReceiver)
+            receiverRegistered = false
+        }
         overlayView?.let {
             if (::windowManager.isInitialized) windowManager.removeView(it)
         }
         overlayView = null
-        demoRunning = false
+        statusView = null
         super.onDestroy()
     }
 
