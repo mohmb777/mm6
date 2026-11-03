@@ -10,6 +10,8 @@ import android.provider.Settings
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.EditText
+import android.text.InputType
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -39,6 +41,68 @@ class MainActivity : Activity() {
             textSize = 15f
             gravity = Gravity.CENTER
             setPadding(0, 12, 0, 28)
+        }
+
+        val sessionStore = SecureSessionStore(this)
+
+        val sessionLabel = TextView(this).apply {
+            text = "معرّف جلسة Pocket Option (Session ID)"
+            textSize = 16f
+            gravity = Gravity.START
+            setPadding(0, 12, 0, 6)
+        }
+
+        val sessionInput = EditText(this).apply {
+            hint = "أدخل Session ID هنا"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            singleLine = true
+            textSize = 15f
+        }
+
+        val sessionStatus = TextView(this).apply {
+            text = if (sessionStore.hasSavedValue()) {
+                "يوجد معرّف محفوظ محليًا ومشفّرًا"
+            } else {
+                "لا يوجد معرّف محفوظ"
+            }
+            textSize = 13f
+            setPadding(0, 4, 0, 8)
+        }
+
+        val saveSessionButton = Button(this).apply {
+            text = "حفظ المعرّف بشكل مشفّر"
+            setOnClickListener {
+                val value = sessionInput.text?.toString().orEmpty()
+                if (value.isBlank()) {
+                    Toast.makeText(this@MainActivity, "أدخل معرّف الجلسة أولًا", Toast.LENGTH_SHORT).show()
+                } else {
+                    try {
+                        sessionStore.save(value)
+                        sessionInput.text?.clear()
+                        sessionStatus.text = "تم حفظ المعرّف محليًا بشكل مشفّر"
+                        Toast.makeText(this@MainActivity, "تم الحفظ على هذا الجهاز", Toast.LENGTH_SHORT).show()
+                    } catch (error: Exception) {
+                        Toast.makeText(this@MainActivity, "تعذر حفظ المعرّف: ${error.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }
+
+        val clearSessionButton = Button(this).apply {
+            text = "حذف المعرّف المحفوظ"
+            setOnClickListener {
+                sessionStore.clear()
+                sessionInput.text?.clear()
+                sessionStatus.text = "لا يوجد معرّف محفوظ"
+                Toast.makeText(this@MainActivity, "تم حذف المعرّف المحفوظ", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        val sessionWarning = TextView(this).apply {
+            text = "تنبيه: هذا الحقل يحفظ القيمة مشفّرة على الجهاز فقط. لا يرسلها إلى Pocket Option ولا يفعّل الاتصال أو تنفيذ الصفقات. لا تدخل معرّف جلسة حقيقيًا إلا إذا كنت تثق بالتطبيق وتفهم أنه قد يمنح الوصول إلى حسابك."
+            textSize = 12f
+            gravity = Gravity.START
+            setPadding(0, 8, 0, 16)
         }
 
         val permissionButton = Button(this).apply {
@@ -81,6 +145,12 @@ class MainActivity : Activity() {
 
         root.addView(title, matchWidth())
         root.addView(subtitle, matchWidth())
+        root.addView(sessionLabel, matchWidth())
+        root.addView(sessionInput, matchWidth())
+        root.addView(saveSessionButton, matchWidth())
+        root.addView(clearSessionButton, matchWidth())
+        root.addView(sessionStatus, matchWidth())
+        root.addView(sessionWarning, matchWidth())
         root.addView(permissionButton, matchWidth())
         root.addView(startOverlayButton, matchWidth())
         root.addView(startCaptureButton, matchWidth())
