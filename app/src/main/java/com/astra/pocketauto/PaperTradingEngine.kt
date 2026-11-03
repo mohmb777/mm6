@@ -18,7 +18,9 @@ class PaperTradingEngine(
         val minimumConfidence: Int = 70,
         val maxTradesPerUtcDay: Int = 20,
         val maxDailyLoss: Double = 5.0,
-        val maxConsecutiveLosses: Int = 3
+        val maxConsecutiveLosses: Int = 3,
+        val martingaleMultiplier: Double = 2.0,
+        val maxMartingaleSteps: Int = 2
     ) {
         init {
             require(startingBalance > 0.0)
@@ -29,6 +31,8 @@ class PaperTradingEngine(
             require(maxTradesPerUtcDay >= 1)
             require(maxDailyLoss > 0.0)
             require(maxConsecutiveLosses >= 1)
+            require(martingaleMultiplier >= 1.0 && martingaleMultiplier.isFinite())
+            require(maxMartingaleSteps >= 0)
         }
     }
 
@@ -102,7 +106,7 @@ class PaperTradingEngine(
                 entryPrice = candle.close,
                 entryTimeMillis = candle.timestampMillis,
                 expiryAtCandleIndex = candleIndex + settings.expiryCandles,
-                stake = settings.stakeAmount,
+                stake = nextStake(),
                 confidence = analysis.confidence
             )
             tradesToday++
@@ -144,8 +148,13 @@ class PaperTradingEngine(
         return TradeResult(trade, outcome, net, balance)
     }
 
+    private fun nextStake(): Double {
+        val steps = consecutiveLosses.coerceAtMost(settings.maxMartingaleSteps)
+        return settings.stakeAmount * Math.pow(settings.martingaleMultiplier, steps.toDouble())
+    }
+
     private fun canOpenTrade(): Boolean =
-        balance >= settings.stakeAmount &&
+        balance >= nextStake() &&
             dailyNet > -settings.maxDailyLoss &&
             tradesToday < settings.maxTradesPerUtcDay &&
             consecutiveLosses < settings.maxConsecutiveLosses
