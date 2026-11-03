@@ -55,7 +55,7 @@ class MainActivity : Activity() {
         val sessionInput = EditText(this).apply {
             hint = "أدخل Session ID هنا"
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-            singleLine = true
+            setSingleLine(true)
             textSize = 15f
         }
 
