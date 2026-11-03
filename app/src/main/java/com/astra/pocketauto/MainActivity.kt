@@ -2,7 +2,9 @@ package com.astra.pocketauto
 
 import android.app.Activity
 import android.content.Intent
+import android.media.projection.MediaProjectionManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.Gravity
@@ -15,6 +17,7 @@ import android.widget.Toast
 class MainActivity : Activity() {
 
     private val overlayRequestCode = 4101
+    private val screenCaptureRequestCode = 4102
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,7 +35,7 @@ class MainActivity : Activity() {
         }
 
         val subtitle = TextView(this).apply {
-            text = "النسخة التأسيسية — واجهة النافذة العائمة"
+            text = "تحليل بصري مباشر — Hybrid 15 FPS"
             textSize = 15f
             gravity = Gravity.CENTER
             setPadding(0, 12, 0, 28)
@@ -43,12 +46,25 @@ class MainActivity : Activity() {
             setOnClickListener { requestOverlayPermission() }
         }
 
-        val startButton = Button(this).apply {
+        val startOverlayButton = Button(this).apply {
             text = "تشغيل النافذة العائمة"
             setOnClickListener { startOverlay() }
         }
 
-        val stopButton = Button(this).apply {
+        val startCaptureButton = Button(this).apply {
+            text = "بدء بث الشاشة والتحليل"
+            setOnClickListener { requestScreenCapture() }
+        }
+
+        val stopCaptureButton = Button(this).apply {
+            text = "إيقاف بث الشاشة"
+            setOnClickListener {
+                stopService(Intent(this@MainActivity, ScreenCaptureService::class.java))
+                Toast.makeText(this@MainActivity, "تم طلب إيقاف بث الشاشة", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        val stopOverlayButton = Button(this).apply {
             text = "إيقاف النافذة العائمة"
             setOnClickListener {
                 stopService(Intent(this@MainActivity, OverlayService::class.java))
@@ -57,7 +73,7 @@ class MainActivity : Activity() {
         }
 
         val note = TextView(this).apply {
-            text = "تنبيه: هذه النسخة لا تقرأ الشارت ولا تفتح صفقات. التداول الآلي غير مفعّل."
+            text = "سيطلب Android إذن مشاركة الشاشة. تتم معالجة عينات بصرية محليًا بمعدل مستهدف 15 إطارًا/ثانية. هذه النسخة لا تحدد CALL/PUT ولا تفتح صفقات."
             textSize = 14f
             gravity = Gravity.CENTER
             setPadding(0, 24, 0, 0)
@@ -66,8 +82,10 @@ class MainActivity : Activity() {
         root.addView(title, matchWidth())
         root.addView(subtitle, matchWidth())
         root.addView(permissionButton, matchWidth())
-        root.addView(startButton, matchWidth())
-        root.addView(stopButton, matchWidth())
+        root.addView(startOverlayButton, matchWidth())
+        root.addView(startCaptureButton, matchWidth())
+        root.addView(stopCaptureButton, matchWidth())
+        root.addView(stopOverlayButton, matchWidth())
         root.addView(note, matchWidth())
 
         setContentView(root)
@@ -97,11 +115,40 @@ class MainActivity : Activity() {
         Toast.makeText(this, "تم طلب تشغيل النافذة العائمة", Toast.LENGTH_SHORT).show()
     }
 
+    private fun requestScreenCapture() {
+        val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        startActivityForResult(manager.createScreenCaptureIntent(), screenCaptureRequestCode)
+    }
+
+    private fun startCaptureService(resultCode: Int, resultData: Intent) {
+        val serviceIntent = Intent(this, ScreenCaptureService::class.java).apply {
+            putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, resultCode)
+            putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, resultData)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent)
+        } else {
+            startService(serviceIntent)
+        }
+        Toast.makeText(this, "تم إرسال طلب بدء تحليل الشاشة", Toast.LENGTH_SHORT).show()
+    }
+
     @Deprecated("Kept compatible with the project's minimum Android API")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == overlayRequestCode && Settings.canDrawOverlays(this)) {
-            Toast.makeText(this, "تم منح إذن النافذة العائمة", Toast.LENGTH_SHORT).show()
+        when (requestCode) {
+            overlayRequestCode -> {
+                if (Settings.canDrawOverlays(this)) {
+                    Toast.makeText(this, "تم منح إذن النافذة العائمة", Toast.LENGTH_SHORT).show()
+                }
+            }
+            screenCaptureRequestCode -> {
+                if (resultCode == RESULT_OK && data != null) {
+                    startCaptureService(resultCode, data)
+                } else {
+                    Toast.makeText(this, "لم تتم الموافقة على مشاركة الشاشة", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 }
